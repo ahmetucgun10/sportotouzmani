@@ -99,3 +99,13 @@ Gerçek PostgreSQL entegrasyon testi ayrıca kayıt, giriş, admin yetkisi, prog
 Gizlilik/kullanım şartları **taslaktır**, hukuki inceleme ve işletmeci bilgileri gerekir. E-posta doğrulama, şifre sıfırlama, hesap silme ve çok faktörlü doğrulama henüz yoktur.
 Herkese açık kullanımdan önce gerçek veritabanıyla migration, admin girişi, kullanıcı kaydı, kupon kaydı ve sonuç güncelleme akışlarını staging ortamında doğrulayın.
 Oturum anahtarını koruyun; admin şifresini değiştirin, PostgreSQL yedekleme ve uygulama erişim kontrolünü yapılandırın.
+
+## Supabase istemci kurulumu
+
+`@supabase/supabase-js` ve `@supabase/ssr` kurulu. `src/utils/supabase/client.ts` tarayıcı istemcisi, `server.ts` ise async Server Component/Route Handler istemcisidir. `src/middleware.ts` Next.js 15 için oturumu `getClaims()` ile yeniler; çerezleri ve önbellek koruma başlıklarını yanıtla taşır. Eksik Supabase ortamında middleware mevcut uygulamayı engellemez; istemci yardımcıları açıklayıcı hata verir.
+
+Vercel > proje > Settings > Environment Variables altında `NEXT_PUBLIC_SUPABASE_URL` ve `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini Supabase projenizin Connect ekranından girin. Production/Preview ortamlarını seçip yeni deployment oluşturun. Yerelde `.env.local` kullanın; gerçek değerleri commit etmeyin. Service role / secret key hiçbir zaman NEXT_PUBLIC değişkenine konmamalıdır.
+
+Bu kurulum mevcut NextAuth/Prisma üyelik sistemini Supabase Auth'a taşımaz, PostgreSQL migration uygulamaz veya `todos` tablosu oluşturmaz. Ana sayfa korunmuştur. Supabase'e tarayıcıdan erişilen tablolar için Row Level Security ve uygun erişim politikaları gerekir. Supabase PostgreSQL kullanılacaksa ayrıca bağlantı dizisini `DATABASE_URL` olarak ayarlayın.
+
+Server Component örneği: `const supabase = await createClient()`; ardından tablo sorgusunun `error` alanını kontrol edin. Yetkilendirme için doğrulanmış `getClaims()` sonucu ve veritabanı RLS kuralları kullanın; yalnızca cookie varlığına güvenmeyin. Mevcut uygulamanın ADMIN rolü Supabase oturumundan türetilmez.
