@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("USER")
+  coupons      Coupon[]
+  createdAt    DateTime @default(now())
+}
+
+model Week {
+  id        String   @id @default(cuid())
+  season    String
+  number    Int
+  matches   Json
+  coupons   Coupon[]
+  updatedAt DateTime @updatedAt
+
+  @@unique([season, number])
+}
+
+model Coupon {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  weekId     String
+  week       Week     @relation(fields: [weekId], references: [id])
+  selections Json
+  columns    Json
+  guarantee  Int?
+  createdAt  DateTime @default(now())
+}
+
+model RateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+}

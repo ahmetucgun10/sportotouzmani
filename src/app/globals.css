@@ -1,0 +1,288 @@
+@import "tailwindcss";
+:root {
+  color-scheme: dark;
+  --bg: #0b111a;
+  --panel: #131e2d;
+  --border: #263448;
+  --green: #a6ed73;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: #eaf0f8;
+  font-family: Arial, sans-serif;
+}
+main {
+  max-width: 1160px;
+  margin: auto;
+  padding: 0 24px;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--border);
+}
+a {
+  color: inherit;
+}
+.brand {
+  font-size: 24px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.brand span {
+  color: var(--green);
+}
+.badge,
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--green);
+}
+header button {
+  margin-left: auto;
+}
+.hero {
+  padding: 64px 0 40px;
+  max-width: 730px;
+}
+.hero h1 {
+  font-size: clamp(36px, 6vw, 64px);
+  line-height: 1.08;
+  letter-spacing: -2px;
+  margin: 20px 0;
+}
+.hero em {
+  color: var(--green);
+  font-style: normal;
+}
+.hero p {
+  color: #a5b4c6;
+  line-height: 1.7;
+}
+.hero small {
+  color: #8797ac;
+  line-height: 1.6;
+  display: block;
+}
+nav {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  margin-bottom: 24px;
+}
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: #192637;
+  color: #eaf0f8;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font-weight: 700;
+}
+button:hover {
+  border-color: var(--green);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.active,
+.selected,
+button.primary {
+  background: var(--green) !important;
+  color: #14230c !important;
+  border-color: var(--green) !important;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 32px;
+}
+h2 {
+  font-size: 23px;
+  margin: 0 0 20px;
+}
+.sectionTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.sectionTitle h2 {
+  margin: 0;
+}
+.status {
+  font-size: 12px;
+  color: var(--green);
+  padding: 16px 0;
+}
+.match {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+}
+.number {
+  color: #7187a3;
+  font-size: 14px;
+  width: 24px;
+}
+.teams {
+  flex: 1;
+}
+.teams strong {
+  font-size: 15px;
+}
+.teams span {
+  color: #7187a3;
+}
+.teams small {
+  display: block;
+  color: #8797ac;
+  font-size: 12px;
+  margin-top: 7px;
+}
+.signs {
+  display: flex;
+  gap: 6px;
+}
+.signs button {
+  width: 46px;
+  padding: 12px 0;
+}
+.settings {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #a5b4c6;
+}
+input,
+select,
+textarea {
+  color: #eaf0f8;
+  background: #0b1420;
+  border: 1px solid #35455b;
+  padding: 12px;
+  border-radius: 8px;
+  font: inherit;
+}
+textarea {
+  width: 100%;
+  margin: 16px 0;
+}
+.settings input {
+  width: 140px;
+}
+.hint {
+  font-size: 12px;
+  color: #8797ac;
+  line-height: 1.6;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.notice {
+  padding: 16px;
+  border: 1px solid #4c6643;
+  border-radius: 10px;
+  background: #17271a;
+  margin: 16px 0;
+  line-height: 1.5;
+}
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+  color: #a5b4c6;
+}
+.account {
+  max-width: 520px;
+}
+.account label {
+  margin: 20px 0;
+}
+.coupon {
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
+}
+pre {
+  max-height: 400px;
+  overflow: auto;
+  padding: 18px;
+  background: #0b1420;
+}
+details {
+  margin-top: 24px;
+}
+summary {
+  cursor: pointer;
+}
+footer {
+  padding: 32px 0;
+  color: #8797ac;
+  font-size: 12px;
+  line-height: 2;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+@media (max-width: 640px) {
+  main {
+    padding: 0 14px;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .badge {
+    display: none;
+  }
+  .match {
+    gap: 8px;
+  }
+  .teams strong {
+    font-size: 12px;
+  }
+  .signs button {
+    width: 34px;
+  }
+  .sectionTitle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .hero {
+    padding-top: 38px;
+  }
+  nav button {
+    white-space: nowrap;
+    padding: 12px;
+  }
+  .settings {
+    gap: 12px;
+  }
+  .settings label {
+    flex: 1;
+  }
+}

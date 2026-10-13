@@ -1,71 +1,101 @@
-# SportotoExpert
+# Sportoto Uzmanı
 
-Spor Toto 15 maç için sistem kuponu oluşturma, filtreleme ve **garantili kupon düşürme** aracı.
-Next.js 15 + Prisma/PostgreSQL + Rust→WebAssembly hesaplama çekirdeği. Bahis oynatmaz, para kabul etmez.
+15 maçlık haftalar için sistem kuponu, beraberlik filtresi, kapsama doğrulama ve kayıt aracı.
+Bahis oynatmaz veya para kabul etmez. **Gerçek sonuçların tümü seçilen işaretlerde olursa** kapsama garantisi geçerlidir; kazanç garantisi değildir.
 
-## Hızlı başlangıç
+## Mevcut uygulama
+
+- Next.js 15, React 19, Prisma 6 / PostgreSQL.
+- E-posta/Argon2 şifre, NextAuth JWT oturumu; veritabanında ortak giriş/kayıt deneme sınırı.
+- USER ve ADMIN rolleri. Rol, istemciden değil veritabanından okunur.
+- Yönetici program ve skorları JSON ile yükler. İlk maç başlayınca kayıt kapanır; bütün sonuçlar tamamlanınca kuponun en iyi kolon puanı hesaplanır.
+- Web Worker içinde **TypeScript** hesaplama motoru (Rust/WASM değildir). En fazla 4.096 kolon; 12/13/14/15 doğru kapsama.
+- İndirilen veya kaydedilen kolonlar seçimlere uymalı, benzersiz olmalı. İddia edilen garanti sunucuda tam seçili sistem üzerinde yeniden doğrulanır.
+- İndirgeme en küçük kolon sayısını vaat etmez. Tam sistemi daraltan filtreler ile garanti birlikte kullanılamaz.
+- Canlı maç kaynağı, otomatik cron, Google OAuth ve Redis entegrasyonu bu sürümde yoktur. Örnek program kendiliğinden yüklenmez.
+
+## Yerel kurulum
 
 ```bash
-cp .env.example .env           # NEXTAUTH_SECRET'i değiştirin
-docker compose up -d db        # PostgreSQL
-npm install
-npm run db:push
-npm run db:seed                # referans seçenekleri + admin + ÖRNEK program
+cp .env.example .env
+# .env içindeki DATABASE_URL, NEXTAUTH_URL ve NEXTAUTH_SECRET değerlerini ayarlayın.
+docker compose up -d db
+npm ci
+npm run db:migrate
+# .env içinde SEED_ADMIN_EMAIL ve SEED_ADMIN_PASSWORD tanımlayın.
+npm run db:seed
 npm run dev
 ```
 
-Seed, admin hesabı için rastgele şifre üretip ekrana yazar (`SEED_ADMIN_PASSWORD` ile belirleyebilirsiniz).
-`public/wasm` içindeki derlenmiş çekirdek repoda hazırdır. Rust kodunu değiştirirseniz: `npm run wasm:build`
-(`wasm32-unknown-unknown` hedefi ve `wasm-bindgen-cli` ya da `wasm-pack` gerekir). Testler: `npm run rust:test`, `npm test`, `npm run test:e2e`.
+Admin şifresi en az 12 karakter olmalıdır. Seed mevcut adminin şifresini değiştirir; tekrar çalıştırmadan önce bunu dikkate alın.
+Uygulamada giriş yaptıktan sonra **Yönetim** sekmesine aşağıdaki biçimde JSON yapıştırın.
 
-## Her hafta otomatik program
-
-Program, `PROGRAM_FEED_URL` ile gösterilen JSON kaynaktan çekilir:
-
-* `GET /api/cron/sync` — Vercel Cron ile **saatte bir** (`vercel.json`), `Authorization: Bearer $CRON_SECRET`.
-* Ayrıca ana sayfa istekleri en çok 10 dakikada bir arka planda senkronizasyon başlatır.
-* Her senkronizasyon: yeni haftaları oluşturur, oranları/skorları günceller, ilk maç başlayınca kuponu kilitler
-  (`OPEN → LOCKED`), 15 sonuç tamamlanınca haftayı kesinleştirip tüm kuponları değerlendirir (`FINAL`).
-* Eski haftalar ana sayfadaki hafta seçici / ok düğmeleriyle her zaman görüntülenir.
-
-**Önemli:** Spor Toto'nun resmi, herkese açık bir JSON API'si yoktur ve bu depo hazır bir veri kaynağına bağlı değildir.
-`PROGRAM_FEED_URL` sizin sağladığınız (ya da yazacağınız bir scraper/aracı servisin) kaynağı göstermelidir.
-Kaynak yoksa yönetim panelinden (`/admin`) aynı biçimde JSON yükleyebilirsiniz. Seed'deki 9. ve 10. hafta **örnek veridir**.
-
-Feed biçimi (`{ "weeks": [...] }` veya doğrudan dizi):
+## Program biçimi
 
 ```json
 {
-  "weeks": [{
-    "season": "2026/2027",            // opsiyonel; verilmezse ilk maç tarihinden türetilir
-    "number": 11,
-    "totalColumnsTR": 1359420, "poolTotal": 120800000,
-    "rollovers": { "r15": 0, "r14": 0, "r13": 0, "r12": 0 },
-    "official": { "winners15": 29, "prize15": 1457880.74, "winners14": 0, "prize14": 0, "winners13": 0, "prize13": 0, "winners12": 0, "prize12": 0 },
-    "matches": [{
-      "matchNo": 1, "home": "Fenerbahçe", "away": "Beşiktaş", "league": "Süper Lig",
-      "kickoff": "2026-10-31T11:00:00Z",
-      "pct1": 48, "pctX": 26, "pct2": 26,
-      "homeGoals": null, "awayGoals": null, "finished": false
-    }]                                // tam 15 maç, matchNo 1–15
-  }]
+  "weeks": [
+    {
+      "season": "2026/2027",
+      "number": 1,
+      "matches": [
+        {
+          "matchNo": 1,
+          "home": "Ev sahibi",
+          "away": "Deplasman",
+          "league": "Lig",
+          "kickoff": "2027-01-01T18:00:00Z",
+          "finished": false,
+          "homeGoals": null,
+          "awayGoals": null
+        }
+      ]
+    }
+  ]
 }
 ```
 
-## Mimari notlar
+`matches` tam **15 benzersiz maç** içermelidir; yukarıdaki tek maç yalnızca alan örneğidir.
+Aynı `season` ve `number` tekrar yüklenirse hafta güncellenir. Kayıtlı kupon içeren haftanın takım, maç numarası veya kickoff alanları değiştirilemez; skorlar güncellenebilir.
+Bitmiş maçta iki skor da zorunludur. Başlangıç zamanı UTC ISO biçimindedir.
 
-* **Hesaplama** tarayıcıda, Web Worker içinde Rust/WASM ile yapılır: üret → filtrele → açgözlü küme örtüsü (12/13/14 garantisi) →
-  sonuç, kapsama açısından yeniden **doğrulanır**. Rust testleri küçük sistemlerde garantiyi tüm olası sonuçlar için kanıtlar.
-* Kuponlar kaydedilirken kolonlar gzip'lenmiş `Uint32` olarak saklanır; sunucu her kolonun seçimlere uyduğunu ve tekrar etmediğini doğrular
-  (garantinin/filtrelerin kendisini yeniden hesaplamaz). Üst sınır: 1.000.000 kolon.
-* Önbellek: `UPSTASH_REDIS_*` tanımlıysa Redis, değilse süreç içi bellek.
-* Kimlik doğrulama: NextAuth v4 (kullanıcı adı/e-posta + argon2; isteğe bağlı Google).
-* Gizlilik ve kullanım şartları sayfaları **taslaktır**; yayından önce hukuki gözden geçirme gerekir.
+## Vercel
 
-## Yayına alma
+Proje kökü bu deponun köküdür, `sportoto-expert` alt klasörü değildir.
+Build: `npm run build`; install: `npm ci` (Prisma generate postinstall ile çalışır).
+PostgreSQL veritabanı sağlayıp şunları **Production ve Preview için ayrı veritabanları kullanarak** tanımlayın:
 
-* **Docker (kendi sunucunuz):** `.env` hazırlayın, sonra `docker compose --profile app up -d --build`. Konteyner açılışta `prisma db push` çalıştırır.
-  İlk kurulumda admin ve referans seçenekleri için `npm run db:seed` çalıştırın. Saatlik senkron için dışarıdan
-  `curl -H "Authorization: Bearer $CRON_SECRET" https://alanadiniz/api/cron/sync` çağıran bir cron ekleyin (sayfa istekleri de tetikler).
-* **Vercel:** Proje kökü `sportoto-expert`, Postgres (Neon/Supabase vb.) `DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `CRON_SECRET`, `PROGRAM_FEED_URL` ayarlayın; `vercel.json` saatlik cron'u içerir.
-* Sağlık kontrolü: `GET /api/health`. CI: `.github/workflows/sportoto-expert.yml`.
+- `DATABASE_URL`: PostgreSQL bağlantısı (gerekirse sağlayıcının SSL ve pool ayarları).
+- `NEXTAUTH_URL`: ilgili ortamın uygulama adresi.
+- `NEXTAUTH_SECRET`: güvenli, rastgele oturum imzalama anahtarı (en az 32 karakter).
+
+Bağlantıları hazır olan yerel bir ortamda `npm run db:migrate` çalıştırıp admini `npm run db:seed` ile oluşturun; sonra PR'ı birleştirip deploy edin. Build sırasında veritabanı değiştirilmez.
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` yalnızca güvenilir kurulum ortamında gerekli; herkese açık değişkenlere dönüştürmeyin.
+Sağlık: `GET /api/health` (bağlantı yoksa 503).
+Docker için `docker compose --profile app up -d --build`; uygulama açılışta versioned migration uygular.
+
+## CI kurulumu
+
+GitHub Actions şablonu `ci.workflow.example.yml` dosyasındadır. GitHub üzerinde gerekli workflow yazma yetkisiyle bu dosyayı `.github/workflows/ci.yml` konumuna taşıyın; bu manuel adım yapılana kadar otomatik CI etkin değildir.
+
+## Kontroller
+
+```bash
+npm ci
+npm run typecheck
+npm test
+npm run build
+npx playwright install --with-deps chromium
+npm run test:e2e
+```
+
+`lint` eski komut uyumluluğu için yalnızca TypeScript kontrolünü çağırır; ayrı ESLint kural seti yoktur.
+Birim testleri tam sonuç uzayı üzerinde kapsama, geçersiz seçim, filtre, kilit ve program doğrulamasını denetler.
+Tarayıcı arayüz testleri API yanıtlarını mock'layarak Web Worker ve UI davranışını test eder.
+Gerçek PostgreSQL entegrasyon testi ayrıca kayıt, giriş, admin yetkisi, program yükleme, kupon kaydı, sahte garanti/tekrarlı kolon reddi, kilit ve sonuç hesaplamasını doğrular. Bu test varsayılan olarak atlanır. **Yalnızca izole bir test veritabanında**, migration ve admin seed uyguladıktan sonra `DATABASE_URL`, `NEXTAUTH_URL=http://localhost:3000`, `NEXTAUTH_SECRET`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` ortam değişkenleriyle `INTEGRATION_TEST=1 npm run test:e2e` çalıştırın; test program ve kupon oluşturur. Production veritabanında çalıştırmayın.
+
+## Yayın öncesi
+
+Gizlilik/kullanım şartları **taslaktır**, hukuki inceleme ve işletmeci bilgileri gerekir. E-posta doğrulama, şifre sıfırlama, hesap silme ve çok faktörlü doğrulama henüz yoktur.
+Herkese açık kullanımdan önce gerçek veritabanıyla migration, admin girişi, kullanıcı kaydı, kupon kaydı ve sonuç güncelleme akışlarını staging ortamında doğrulayın.
+Oturum anahtarını koruyun; admin şifresini değiştirin, PostgreSQL yedekleme ve uygulama erişim kontrolünü yapılandırın.
