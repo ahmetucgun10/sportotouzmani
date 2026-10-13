@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sportoto
+      POSTGRES_PASSWORD: sportoto_dev
+      POSTGRES_DB: sportoto_expert
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sportoto"]
+      interval: 5s
+      retries: 10
+
+  # Tam yığın: `docker compose --profile app up --build`
+  app:
+    profiles: ["app"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://sportoto:sportoto_dev@db:5432/sportoto_expert
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
