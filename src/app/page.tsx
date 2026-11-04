@@ -104,9 +104,13 @@ export default function HomePage() {
 
           for (const line of lines) {
             if (line.startsWith("data: ")) {
+              let data;
               try {
-                const data = JSON.parse(line.slice(6));
-
+                data = JSON.parse(line.slice(6));
+              } catch {
+                continue; // geçersiz JSON satırını atla
+              }
+              {
                 if (data.type === "init") {
                   setAnalysisId(data.analysisId);
                 } else if (data.type === "log") {
@@ -115,10 +119,9 @@ export default function HomePage() {
                   setAnalysisResult(data.result);
                   setIsAnalyzing(false);
                 } else if (data.type === "error") {
-                  throw new Error(data.message);
+                  // Sunucu hatası dış catch'e ulaşsın: mesaj gösterilir, düğme tekrar açılır.
+                  throw new Error(data.message || "Analiz sırasında hata oluştu");
                 }
-              } catch (parseErr) {
-                // Skip invalid JSON
               }
             }
           }
