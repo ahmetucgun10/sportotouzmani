@@ -740,18 +740,11 @@ Poisson Modeli: ${condense(ctx.quantModel, 600)}
     }
   }
 
-  const finalText =
-    prediction && prediction.trim().length >= 40
-      ? prediction.trim()
-      : `**GENEL DEĞERLENDİRME & KANTİTATİF SENTEZ**\n${condense(ctx.quantModel, 500)}\n\n**TAHMİN SONUCU**\n🏆 Ana Tahmin: ${
-          parseRatingNum(home.overallRating) >= parseRatingNum(away.overallRating)
-            ? `${homeTeam} (Ev sahibi avantajıyla bir adım önde)`
-            : `${awayTeam} (Form ve performans notuyla önde)`
-        }\n🛡️ En Yüksek İsabetli (Güvenli) Tercih: ${
-          parseRatingNum(home.overallRating) >= parseRatingNum(away.overallRating)
-            ? `${homeTeam} Yenilmez (1X)`
-            : `${awayTeam} Yenilmez (X2)`
-        }`;
+  if (!prediction || prediction.trim().length < 40) {
+    // Önceden burada AI yanıtı olmadan puanlardan "tahmin" uyduruluyordu; artık açık hata veriliyor.
+    throw new Error("Tahmin Komutanı final tahmini üretemedi (OpenAI yanıt vermedi). Lütfen tekrar deneyin.");
+  }
+  const finalText = prediction.trim();
 
   onLog({
     agentName: "Tahmin Komutanı",
@@ -859,6 +852,19 @@ export async function runFullMatchAnalysis(
     ],
     6
   );
+
+  // Ajanların çoğu veri alamadıysa (ör. geçersiz API anahtarı) uydurma bir tahmin üretme; açık hata ver.
+  const stageOne = [hInjury, aInjury, hForm, aForm, hXg, aXg, hNews, aNews, hComments, aComments, hTactics, aTactics,
+    hStar, aStar, hTransfer, aTransfer, hSocial, aSocial, homeAwaySplit, fixtureFatigue, lineupMatchup, h2h, odds,
+    weather, motivation, referee];
+  const failed = stageOne.filter((r) => r.content.startsWith("Veri alınamadı:"));
+  if (failed.length > stageOne.length / 2) {
+    const reason = failed[0].content.replace(/^Veri alınamadı:\s*/, "").slice(0, 300);
+    throw new Error(
+      `Ajanların ${failed.length}/${stageOne.length} tanesi veri alamadı; güvenilir tahmin üretilemedi. ` +
+        `API anahtarlarını (OpenAI, Tavily) ve kotalarını kontrol edin. İlk hata: ${reason}`
+    );
+  }
 
   const homeTeamAnalysis: TeamAnalysis = {
     teamName: homeTeam,
