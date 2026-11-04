@@ -1,3 +1,4 @@
 {
-  "crons": [{ "path": "/api/cron/sync", "schedule": "0 * * * *" }]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs"
 }
