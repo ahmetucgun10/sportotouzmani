@@ -286,3 +286,81 @@ export function searchRefereeInfo(homeTeam: string, awayTeam: string) {
     }
   );
 }
+
+// ============ GÜNCEL GELİŞME TAKİBİ & SÜRPRİZ KEŞFİ (EK AJAN ARAMALARI) ============
+
+/** Bugünün tarihi (Türkiye saati) — ajanların "en yeni" bilgiyi ayırt edebilmesi için. */
+export function todayLabel(): string {
+  return new Date().toLocaleDateString("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    weekday: "long",
+  });
+}
+
+/** Sonuçları yayın tarihine göre en yeniden eskiye sıralar (tarihi olmayanlar sona). */
+export function sortByRecency(results: SearchResult[]): SearchResult[] {
+  return [...results].sort((a, b) => {
+    const ta = a.publishedDate ? Date.parse(a.publishedDate) : NaN;
+    const tb = b.publishedDate ? Date.parse(b.publishedDate) : NaN;
+    if (isNaN(ta) && isNaN(tb)) return 0;
+    if (isNaN(ta)) return 1;
+    if (isNaN(tb)) return -1;
+    return tb - ta;
+  });
+}
+
+/** Son 48 saatin takım gelişmeleri (sakatlık, kadro, açıklama, kriz) — en yeniden eskiye. */
+export async function searchLatestDevelopments(teamName: string, league?: string) {
+  const leagueQuery = league ? ` ${league}` : "";
+  const res = await searchWeb(
+    `${teamName}${leagueQuery} son dakika bugün açıklama kadro sakatlık antrenman gelişme ${todayLabel()}`,
+    { maxResults: 8, topic: "news", searchDepth: "advanced", days: 2 }
+  );
+  return { ...res, results: sortByRecency(res.results) };
+}
+
+/** Maç günü nabzı: açıklanan kadrolar, son dakika eksikler, oran kaymaları, maç saati değişiklikleri. */
+export async function searchMatchDayUpdates(homeTeam: string, awayTeam: string, matchDate?: string) {
+  const dateQuery = matchDate ? ` ${matchDate}` : "";
+  const res = await searchWeb(
+    `${homeTeam} ${awayTeam}${dateQuery} maç öncesi son dakika kamp kadrosu ilk 11 açıklandı oran düştü`,
+    { maxResults: 8, topic: "news", searchDepth: "advanced", days: 3 }
+  );
+  return { ...res, results: sortByRecency(res.results) };
+}
+
+/** Maça özel sürpriz sinyalleri: underdog/upset yorumları, ters köşe uyarıları, tuzak favori. */
+export function searchUpsetSignals(homeTeam: string, awayTeam: string, league?: string) {
+  const leagueQuery = league ? ` ${league}` : "";
+  return searchWeb(
+    `${homeTeam} vs ${awayTeam}${leagueQuery} upset underdog surprise prediction sürpriz tuzak maç ters köşe ${currentYear}`,
+    { maxResults: 7, topic: "general", searchDepth: "advanced", days: 7 }
+  );
+}
+
+/** Belirli bir lig için yaklaşan maç programı (fikstür). */
+export function searchUpcomingFixtures(league: string, windowLabel: string) {
+  return searchWeb(
+    `${league} fixtures ${windowLabel} maç programı fikstür hangi maçlar var ${todayLabel()}`,
+    { maxResults: 8, topic: "general", searchDepth: "advanced", days: 4 }
+  );
+}
+
+/** Lig genelinde "sürpriz olabilecek maçlar" yorumları. */
+export function searchLeagueUpsetTips(league: string, windowLabel: string) {
+  return searchWeb(
+    `${league} ${windowLabel} upset alert surprise picks underdog predictions sürpriz olabilecek maçlar`,
+    { maxResults: 7, topic: "news", searchDepth: "advanced", days: 5 }
+  );
+}
+
+/** Tek bir maç için hızlı sürpriz taraması (önizleme + eksikler + oran). */
+export function searchQuickMatchPreview(homeTeam: string, awayTeam: string) {
+  return searchWeb(
+    `${homeTeam} vs ${awayTeam} preview prediction team news injuries odds maç önü eksikler`,
+    { maxResults: 6, topic: "news", searchDepth: "basic", days: 5 }
+  );
+}

@@ -69,3 +69,32 @@ export async function analyzeWithAI(
     );
   }
 }
+
+/**
+ * JSON çıktısı zorunlu AI çağrısı (sürpriz kararı & keşif ajanları için).
+ * Yanıt geçerli JSON değilse hata fırlatır.
+ */
+export async function analyzeJSON<T>(
+  systemPrompt: string,
+  userContent: string,
+  options: AnalyzeOptions = {}
+): Promise<T> {
+  const client = getOpenAIClient();
+  const response = await client.chat.completions.create({
+    model: options.model ?? "gpt-4o-mini",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userContent },
+    ],
+    temperature: options.temperature ?? 0.2,
+    max_tokens: options.maxTokens ?? 1200,
+    response_format: { type: "json_object" },
+  });
+  const text = response.choices[0]?.message?.content?.trim();
+  if (!text) throw new Error("Model boş JSON yanıtı döndürdü.");
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Model geçerli JSON döndürmedi.");
+  }
+}
