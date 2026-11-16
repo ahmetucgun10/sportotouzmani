@@ -5,7 +5,8 @@ import MatchForm from "@/components/MatchForm";
 import AgentDashboard from "@/components/AgentDashboard";
 import AnalysisResult from "@/components/AnalysisResult";
 import HistoryPanel from "@/components/HistoryPanel";
-import { AgentLog } from "@/lib/agents";
+import SurpriseDiscovery from "@/components/SurpriseDiscovery";
+import { AgentLog, SurpriseVerdict } from "@/lib/agents";
 
 export interface TeamAnalysisData {
   teamName: string;
@@ -33,6 +34,10 @@ export interface MatchContextData {
   headToHead: string;
   quantModel?: string;
   devilsAdvocate?: string;
+  latestHome?: string;
+  latestAway?: string;
+  matchDayPulse?: string;
+  surpriseHunter?: string;
 }
 
 export interface AnalysisData {
@@ -41,6 +46,7 @@ export interface AnalysisData {
   matchContext?: MatchContextData;
   headToHead: string;
   finalPrediction: string;
+  surpriseVerdict?: SurpriseVerdict | null;
 }
 
 export default function HomePage() {
@@ -53,7 +59,7 @@ export default function HomePage() {
     awayTeam: string;
     league?: string;
   } | null>(null);
-  const [activeTab, setActiveTab] = useState<"analyze" | "history">("analyze");
+  const [activeTab, setActiveTab] = useState<"analyze" | "discover" | "history">("analyze");
   const [error, setError] = useState<string | null>(null);
   const [apiKeys, setApiKeys] = useState<{
     openai: boolean;
@@ -160,6 +166,16 @@ export default function HomePage() {
               🎯 Maç Analizi
             </button>
             <button
+              onClick={() => setActiveTab("discover")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === "discover"
+                  ? "bg-orange-600 text-white shadow-lg"
+                  : "text-slate-400 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              ⚡ Sürpriz Keşfi
+            </button>
+            <button
               onClick={() => setActiveTab("history")}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === "history"
@@ -176,6 +192,14 @@ export default function HomePage() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         {activeTab === "history" ? (
           <HistoryPanel />
+        ) : activeTab === "discover" ? (
+          <SurpriseDiscovery
+            disabled={isAnalyzing}
+            onAnalyze={(home, away, lg, date) => {
+              setActiveTab("analyze");
+              handleStartAnalysis(home, away, lg, date);
+            }}
+          />
         ) : (
           <div className="space-y-6">
             {/* Hero Banner */}
@@ -256,6 +280,10 @@ export default function HomePage() {
                     { emoji: "📐", name: "Poisson Model", desc: "Matematiksel % Olasılık" },
                     { emoji: "⚖️", name: "Şeytanın Avukatı", desc: "Tuzak & Yanılgı Denetçisi" },
                     { emoji: "🎯", name: "Ensemble Komutan", desc: "Kalibre Final Karar" },
+                    { emoji: "🛰️", name: "Canlı Gelişme", desc: "Son 48 Saat Takibi" },
+                    { emoji: "📡", name: "Maç Günü Nabzı", desc: "Kadro & Oran Kayması" },
+                    { emoji: "⚡", name: "Sürpriz Avcısı", desc: "Ters Köşe Sinyalleri" },
+                    { emoji: "🎲", name: "Sürpriz Karar", desc: "Sürpriz Var mı / Net mi" },
                   ].map((agent) => (
                     <div
                       key={agent.name}

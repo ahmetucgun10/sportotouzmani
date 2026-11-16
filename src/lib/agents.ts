@@ -16,9 +16,13 @@ import {
   searchHomeAwaySplit,
   searchFixtureFatigue,
   searchLineupMatchup,
+  searchLatestDevelopments,
+  searchMatchDayUpdates,
+  searchUpsetSignals,
+  todayLabel,
   SearchResult,
 } from "./tavily";
-import { analyzeWithAI } from "./openai";
+import { analyzeWithAI, analyzeJSON } from "./openai";
 import { getOpenAIApiKey, getTavilyApiKey } from "./env";
 
 /**
@@ -74,6 +78,24 @@ export interface MatchContext {
   headToHead: string;
   quantModel: string;
   devilsAdvocate: string;
+  // --- Ek ajanlar (eski kayıtlarda olmayabilir) ---
+  latestHome?: string;
+  latestAway?: string;
+  matchDayPulse?: string;
+  surpriseHunter?: string;
+}
+
+/** Sürpriz Karar Ajanı'nın yapılandırılmış çıktısı. */
+export interface SurpriseVerdict {
+  hasSurprise: boolean;
+  surpriseLevel: "YOK" | "DÜŞÜK" | "ORTA" | "YÜKSEK";
+  mainResult: string;
+  mainScore: string;
+  surpriseResult: string | null;
+  surpriseScore: string | null;
+  surpriseProbability: number | null;
+  reasons: string[];
+  summary: string;
 }
 
 export interface MatchAnalysisResult {
@@ -82,16 +104,17 @@ export interface MatchAnalysisResult {
   matchContext: MatchContext;
   headToHead: string;
   finalPrediction: string;
+  surpriseVerdict?: SurpriseVerdict | null;
   logs: AgentLog[];
 }
 
-type LogCallback = (log: AgentLog) => void;
+export type LogCallback = (log: AgentLog) => void;
 
 /**
  * Run async tasks with a concurrency limit so 25+ parallel web+AI tasks do not
  * trip OpenAI/Tavily rate limits.
  */
-async function runWithConcurrency<T>(
+export async function runWithConcurrency<T>(
   tasks: Array<() => Promise<T>>,
   limit: number
 ): Promise<T[]> {
@@ -112,7 +135,7 @@ async function runWithConcurrency<T>(
 
 type SearchFn = () => Promise<{ results: SearchResult[]; answer?: string }>;
 
-async function runAgent(opts: {
+export async function runAgent(opts: {
   agentName: string;
   agentEmoji: string;
   runningStep: string;
@@ -168,7 +191,7 @@ async function runAgent(opts: {
   }
 }
 
-function sourcesToText(results: SearchResult[], answer?: string): string {
+export function sourcesToText(results: SearchResult[], answer?: string): string {
   const body = results
     .map(
       (r, i) =>
@@ -178,7 +201,7 @@ function sourcesToText(results: SearchResult[], answer?: string): string {
   return `${answer ? `📌 Web Özeti: ${answer}\n\n` : ""}${body}`;
 }
 
-const BASE_PERSONA =
+export const BASE_PERSONA =
   "Sen veri odaklı elit bir futbol analistisisin. SADECE verilen güncel web araştırma sonuçlarına dayan, uydurma yapma. Popüler takım yanlılığına düşme; somut rakamlara, eksiklerin ilk 11'deki gerçek ağırlığına ve objektif sinyallere odaklan. Her zaman Türkçe, net ve maddeler halinde yanıt ver.";
 
 // =====================================================
@@ -455,11 +478,192 @@ export function runRefereeAgent(homeTeam: string, awayTeam: string, onLog: LogCa
 }
 
 // =====================================================
+// 2B. GÜNCEL GELİŞME TAKİP AJANLARI (EK)
+//     Mevcut tarihe en yakın bilgiyi yakalar; eski haberleri ayıklar.
+// =====================================================
+
+export function runLatestDevelopmentsAgent(
+  teamName: string,
+  league: string | undefined,
+  onLog: LogCallback
+) {
+  return runAgent({
+    agentName: "Canlı Gelişme Takipçisi",
+    agentEmoji: "🛰️",
+    runningStep: `${teamName} için son 48 saatin gelişmeleri (bugün: ${todayLabel()}) taranıyor...`,
+    doneStep: `${teamName} - En güncel gelişmeler derlendi`,
+    search: () => searchLatestDevelopments(teamName, league),
+    systemPrompt: `${BASE_PERSONA} Bugünün tarihi: ${todayLabel()}. Yalnızca SON 48-72 SAATTE yayımlanmış bilgileri dikkate al; daha eski veya tarihi belirsiz bilgileri "eski/doğrulanmamış" diye işaretle.`,
+    buildUserPrompt: (results, answer) =>
+      `${teamName} ile ilgili EN YENİ gelişmeleri, en yeniden eskiye doğru sırala. Her madde için: [tarih/saat] — gelişme — Maça Etkisi (Olumlu/Olumsuz/Nötr). Özellikle: son antrenmandan sakatlık/iyileşme haberleri, kadro dışı kalanlar, teknik direktör açıklamaları, yönetim/kriz haberleri. Önceki haftalara göre DEĞİŞEN bir durum varsa "⚠️ YENİ" diye vurgula. Hiç güncel gelişme yoksa bunu açıkça yaz.\n\n${sourcesToText(results, answer)}`,
+    onLog,
+  });
+}
+
+export function runMatchDayPulseAgent(
+  homeTeam: string,
+  awayTeam: string,
+  matchDate: string | undefined,
+  onLog: LogCallback
+) {
+  return runAgent({
+    agentName: "Maç Günü Nabız Ajanı",
+    agentEmoji: "📡",
+    runningStep: `${homeTeam} vs ${awayTeam} maç günü son dakika gelişmeleri (kadro, oran kayması) izleniyor...`,
+    doneStep: `Maç günü nabız raporu hazır`,
+    search: () => searchMatchDayUpdates(homeTeam, awayTeam, matchDate),
+    systemPrompt: `${BASE_PERSONA} Bugünün tarihi: ${todayLabel()}. En yeni kaynağı esas al; eski bilgiyle çelişen yeni bilgi varsa YENİ bilgiyi kullan.`,
+    buildUserPrompt: (results, answer) =>
+      `${homeTeam} vs ${awayTeam} maçı için maç öncesi SON DAKİKA nabzını çıkar:\n- Açıklanan kamp kadrosu / ilk 11 (varsa) ve sürpriz kadro dışı isimler\n- Son 24-72 saatte ortaya çıkan sakatlık veya dönüşler\n- Oranlarda son saatlerde dikkat çekici kayma (para hangi tarafa akıyor?)\n- Maç saati/stadyum/seyirci (ceza, boş tribün) değişiklikleri\nHer maddeye tarih ekle. Güncel veri yoksa açıkça "maç günü verisi henüz yok" de.\n\n${sourcesToText(results, answer)}`,
+    onLog,
+  });
+}
+
+/**
+ * Sürpriz Avcısı: Maçın kendisi için "ters köşe" ihtimalini avlar.
+ * Hem web sinyallerini (upset yorumları) hem de diğer ajanların dosyasını kullanır.
+ */
+export function runSurpriseHunterAgent(
+  homeTeam: string,
+  awayTeam: string,
+  league: string | undefined,
+  dossier: string,
+  onLog: LogCallback
+) {
+  return runAgent({
+    agentName: "Sürpriz Avcısı Ajanı",
+    agentEmoji: "⚡",
+    runningStep: `${homeTeam} vs ${awayTeam} için sürpriz / ters köşe sinyalleri avlanıyor...`,
+    doneStep: `Sürpriz sinyal taraması tamamlandı`,
+    search: () => searchUpsetSignals(homeTeam, awayTeam, league),
+    systemPrompt:
+      "Sen sürpriz sonuçları önceden sezmekle ünlü bir futbol analistisin. Ama gereksiz yere sürpriz ilan etmezsin: kanıt yoksa açıkça 'sürpriz beklentisi yok' dersin. Somut verilerle (eksik as oyuncu, yorgunluk, motivasyon farkı, xG/form uyumsuzluğu, oran kayması, H2H laneti) konuşursun. Türkçe ve maddeli yaz.",
+    buildUserPrompt: (results, answer) =>
+      `${homeTeam} (Ev) vs ${awayTeam} (Dep) maçında sürpriz sonuç ihtimalini değerlendir.\n\n═══ AJAN DOSYASI ═══\n${dossier}\n\n═══ WEB SÜRPRİZ SİNYALLERİ ═══\n${sourcesToText(results, answer)}\n\nŞu başlıklarla yanıtla:\n1. **Beklenen (Favori) Sonuç:** ...\n2. **Sürpriz Sinyalleri:** (her biri somut kanıtla; yoksa "anlamlı sinyal yok")\n3. **Olası Sürpriz Sonuç:** [Ev kazanır / Beraberlik / Deplasman kazanır / Gol piyasası sürprizi] + olası skor\n4. **Sürpriz Olasılığı:** %XX\n5. **Sürpriz Seviyesi:** YOK / DÜŞÜK / ORTA / YÜKSEK`,
+    onLog,
+  });
+}
+
+/**
+ * Sürpriz Karar Ajanı: Komutan tahmini + Sürpriz Avcısı + Poisson + Şeytanın Avukatı'nı
+ * birleştirerek "sürpriz var mı yok mu" kararını yapılandırılmış olarak verir.
+ */
+export async function runSurpriseVerdictAgent(
+  homeTeam: string,
+  awayTeam: string,
+  finalPrediction: string,
+  ctx: MatchContext,
+  onLog: LogCallback
+): Promise<SurpriseVerdict | null> {
+  const agentName = "Sürpriz Karar Ajanı";
+  const agentEmoji = "🎲";
+  onLog({
+    agentName,
+    agentEmoji,
+    step: `Ana tahmin ile sürpriz senaryosu karşılaştırılıyor — sürpriz beklentisi var mı?`,
+    content: "",
+    sources: [],
+    status: "running",
+    timestamp: new Date().toISOString(),
+  });
+
+  try {
+    const raw = await analyzeJSON<Partial<SurpriseVerdict>>(
+      "Sen bir futbol tahmin hakemisin. Ana tahmini ve sürpriz raporlarını karşılaştırıp yalnızca GEÇERLİ JSON döndürürsün. Sürprizi ancak somut kanıt ve en az %20 olasılık varsa ilan edersin; aksi halde net ol ve hasSurprise=false de. Tüm metinler Türkçe olmalı.",
+      `${homeTeam} (Ev) vs ${awayTeam} (Dep)
+
+═══ TAHMİN KOMUTANI KARARI ═══
+${condense(finalPrediction, 1800)}
+
+═══ SÜRPRİZ AVCISI RAPORU ═══
+${condense(ctx.surpriseHunter || "", 1000)}
+
+═══ POISSON MODELİ ═══
+${condense(ctx.quantModel, 700)}
+
+═══ ŞEYTANIN AVUKATI ═══
+${condense(ctx.devilsAdvocate, 700)}
+
+═══ SON DAKİKA ═══
+${condense(ctx.matchDayPulse || "", 400)}
+
+Kurallar:
+- mainResult ve mainScore, Tahmin Komutanı'nın "Ana Tahmin" ve "Tahmini Skor"u ile AYNI olmalı (ör. "${homeTeam} Kazanır", "2-1").
+- Sürpriz = ana tahminden FARKLI bir maç sonucu (veya ana tahmin favori galibiyetken beraberlik / diğer takım galibiyeti). Sadece skor farkı sürpriz sayılmaz.
+- hasSurprise=true YALNIZCA: sürpriz olasılığı >= %20 VE seviye ORTA veya YÜKSEK VE en az 2 somut kanıt varsa.
+- hasSurprise=false ise surpriseResult, surpriseScore, surpriseProbability null olmalı ve summary net bir cümle olmalı (ör. "Bu maçta sürpriz beklentisi yok; sonuç net: ...").
+
+Şu JSON şemasıyla yanıt ver:
+{"hasSurprise": boolean, "surpriseLevel": "YOK"|"DÜŞÜK"|"ORTA"|"YÜKSEK", "mainResult": string, "mainScore": string, "surpriseResult": string|null, "surpriseScore": string|null, "surpriseProbability": number|null, "reasons": string[], "summary": string}`,
+      { maxTokens: 900, temperature: 0.15 }
+    );
+
+    const level = (["YOK", "DÜŞÜK", "ORTA", "YÜKSEK"] as const).includes(
+      raw.surpriseLevel as SurpriseVerdict["surpriseLevel"]
+    )
+      ? (raw.surpriseLevel as SurpriseVerdict["surpriseLevel"])
+      : "YOK";
+    const prob =
+      typeof raw.surpriseProbability === "number" && isFinite(raw.surpriseProbability)
+        ? Math.round(Math.max(0, Math.min(100, raw.surpriseProbability)))
+        : null;
+    // Kuralları kod tarafında da uygula (model gevşek davranırsa diye).
+    const hasSurprise =
+      !!raw.hasSurprise &&
+      !!raw.surpriseResult &&
+      (level === "ORTA" || level === "YÜKSEK") &&
+      prob !== null &&
+      prob >= 20;
+
+    const verdict: SurpriseVerdict = {
+      hasSurprise,
+      surpriseLevel: hasSurprise ? level : level === "YÜKSEK" || level === "ORTA" ? "DÜŞÜK" : level,
+      mainResult: String(raw.mainResult || "—"),
+      mainScore: String(raw.mainScore || "—"),
+      surpriseResult: hasSurprise ? String(raw.surpriseResult) : null,
+      surpriseScore: hasSurprise && raw.surpriseScore ? String(raw.surpriseScore) : null,
+      surpriseProbability: hasSurprise ? prob : null,
+      reasons: Array.isArray(raw.reasons) ? raw.reasons.map(String).slice(0, 5) : [],
+      summary:
+        String(raw.summary || "").trim() ||
+        (hasSurprise
+          ? `Sürpriz sonucum: ${raw.surpriseResult}`
+          : `Bu maçta sürpriz beklentisi yok; sonuç net: ${raw.mainResult} (${raw.mainScore}).`),
+    };
+
+    onLog({
+      agentName,
+      agentEmoji,
+      step: verdict.hasSurprise
+        ? `Sürpriz beklentisi VAR — Sürpriz sonucum: ${verdict.surpriseResult}${verdict.surpriseScore ? ` (${verdict.surpriseScore})` : ""}`
+        : `Sürpriz beklentisi yok — Net sonuç: ${verdict.mainResult} (${verdict.mainScore})`,
+      content: verdict.summary + (verdict.reasons.length ? `\n\n• ${verdict.reasons.join("\n• ")}` : ""),
+      sources: [],
+      status: "done",
+      timestamp: new Date().toISOString(),
+    });
+    return verdict;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    onLog({
+      agentName,
+      agentEmoji,
+      step: `Sürpriz kararı üretilemedi: ${msg}`,
+      content: `Sürpriz kararı üretilemedi (ana tahmin etkilenmedi): ${msg}`,
+      sources: [],
+      status: "error",
+      timestamp: new Date().toISOString(),
+    });
+    return null;
+  }
+}
+
+// =====================================================
 // 3. ACCURACY VERIFICATION & CALIBRATION COMMITTEE
 //    (Kantitatif Poisson Modelcisi + Şeytanın Avukatı + Ensemble Komutan)
 // =====================================================
 
-function condense(text: string, maxChars = 550): string {
+export function condense(text: string, maxChars = 550): string {
   if (!text) return "Veri bulunamadı.";
   const clean = text.replace(/\s+/g, " ").trim();
   if (clean.length <= maxChars) return clean;
@@ -467,6 +671,21 @@ function condense(text: string, maxChars = 550): string {
 }
 
 function buildCompactDossier(
+  home: TeamAnalysis,
+  away: TeamAnalysis,
+  ctx: Omit<MatchContext, "quantModel" | "devilsAdvocate">
+): string {
+  const latest =
+    ctx.latestHome || ctx.latestAway || ctx.matchDayPulse
+      ? `\n\n[SON DAKİKA — EN GÜNCEL GELİŞMELER (Bugün: ${todayLabel()}) — eski bilgiyle çelişirse BUNU esas al]
+• ${home.teamName} son 48 saat: ${condense(ctx.latestHome || "", 420)}
+• ${away.teamName} son 48 saat: ${condense(ctx.latestAway || "", 420)}
+• Maç Günü Nabzı: ${condense(ctx.matchDayPulse || "", 420)}`
+      : "";
+  return `${buildBaseDossier(home, away, ctx)}${latest}`;
+}
+
+function buildBaseDossier(
   home: TeamAnalysis,
   away: TeamAnalysis,
   ctx: Omit<MatchContext, "quantModel" | "devilsAdvocate">
@@ -787,7 +1006,7 @@ export async function runFullMatchAnalysis(
     agentName: "Orkestrasyon Ajanı",
     agentEmoji: "🤖",
     step: `3 Katmanlı Doğruluk Motoru başlatıldı! ${homeTeam} vs ${awayTeam} için 18 uzman ajan devrede...`,
-    content: `🌐 CANLI ENSEMBLE MODU — 3 Katmanlı Doğruluk & Kalibrasyon Mimarisi (OpenAI + Tavily)\n\n1️⃣ Katman — Takım & İleri İstatistik Ajanları (x2 Takım):\n• 📈 xG & İleri İstatistik (Gol beklentisi & şans analizi)\n• 🏥 Sakatlık & Ceza (As kadro etki skoru)\n• 📊 Form & Rakip Zorluk Derecesi\n• 👔 Teknik Direktör & Taktik Sistem\n• ⭐ Yıldız Oyuncu Formu\n• 🔁 Kadro Derinliği & Hamle Gücü\n• 📰 Son Dakika Haberler | 📱 Psikolojik Baskı | 💬 Uzman Notu\n\n2️⃣ Katman — Maç Dinamikleri & Keskin Piyasa Ajanları:\n• 🏟️ İç Saha / Deplasman Split Uzmanı\n• ⏱️ Fikstür Yorgunluğu & Rotasyon Riski\n• 🧩 Muhtemel 11 & Duran Top Eşleşmesi\n• 📉 Keskin Oran & Piyasa Hareketleri\n• 🔥 Motivasyon & Puan İhtiyacı | ⚔️ H2H | 🌦️ Zemin | 🟨 Hakem\n\n3️⃣ Katman — Çapraz Doğrulama & Olasılık Kalibrasyon Komitesi:\n• 📐 Kantitatif & Poisson Gol Modelcisi\n• ⚖️ Şeytanın Avukatı & Tuzak Denetçisi\n• 🎯 Tahmin Komutanı (Ağırlıklı Ensemble Karar Merkezi)`,
+    content: `🌐 CANLI ENSEMBLE MODU — 3 Katmanlı Doğruluk & Kalibrasyon Mimarisi (OpenAI + Tavily)\n\n1️⃣ Katman — Takım & İleri İstatistik Ajanları (x2 Takım):\n• 📈 xG & İleri İstatistik (Gol beklentisi & şans analizi)\n• 🏥 Sakatlık & Ceza (As kadro etki skoru)\n• 📊 Form & Rakip Zorluk Derecesi\n• 👔 Teknik Direktör & Taktik Sistem\n• ⭐ Yıldız Oyuncu Formu\n• 🔁 Kadro Derinliği & Hamle Gücü\n• 📰 Son Dakika Haberler | 📱 Psikolojik Baskı | 💬 Uzman Notu\n\n2️⃣ Katman — Maç Dinamikleri & Keskin Piyasa Ajanları:\n• 🏟️ İç Saha / Deplasman Split Uzmanı\n• ⏱️ Fikstür Yorgunluğu & Rotasyon Riski\n• 🧩 Muhtemel 11 & Duran Top Eşleşmesi\n• 📉 Keskin Oran & Piyasa Hareketleri\n• 🔥 Motivasyon & Puan İhtiyacı | ⚔️ H2H | 🌦️ Zemin | 🟨 Hakem\n\n3️⃣ Katman — Çapraz Doğrulama & Olasılık Kalibrasyon Komitesi:\n• 📐 Kantitatif & Poisson Gol Modelcisi\n• ⚖️ Şeytanın Avukatı & Tuzak Denetçisi\n• 🎯 Tahmin Komutanı (Ağırlıklı Ensemble Karar Merkezi)\n\n➕ Ek Katman — Güncel Gelişme & Sürpriz Ajanları:\n• 🛰️ Canlı Gelişme Takipçisi (x2 Takım, son 48 saat)\n• 📡 Maç Günü Nabız Ajanı (kadro, oran kayması)\n• ⚡ Sürpriz Avcısı | 🎲 Sürpriz Karar Ajanı`,
     sources: [],
     status: "done",
     timestamp: new Date().toISOString(),
@@ -821,6 +1040,9 @@ export async function runFullMatchAnalysis(
     weather,
     motivation,
     referee,
+    hLatest,
+    aLatest,
+    matchDayPulse,
   ] = await runWithConcurrency(
     [
       () => runInjuryAgent(homeTeam, logCollector),
@@ -849,6 +1071,10 @@ export async function runFullMatchAnalysis(
       () => runWeatherAgent(homeTeam, matchDate, logCollector),
       () => runMotivationAgent(homeTeam, awayTeam, league, logCollector),
       () => runRefereeAgent(homeTeam, awayTeam, logCollector),
+      // Ek: güncel gelişme takip ajanları
+      () => runLatestDevelopmentsAgent(homeTeam, league, logCollector),
+      () => runLatestDevelopmentsAgent(awayTeam, league, logCollector),
+      () => runMatchDayPulseAgent(homeTeam, awayTeam, matchDate, logCollector),
     ],
     6
   );
@@ -856,7 +1082,7 @@ export async function runFullMatchAnalysis(
   // Ajanların çoğu veri alamadıysa (ör. geçersiz API anahtarı) uydurma bir tahmin üretme; açık hata ver.
   const stageOne = [hInjury, aInjury, hForm, aForm, hXg, aXg, hNews, aNews, hComments, aComments, hTactics, aTactics,
     hStar, aStar, hTransfer, aTransfer, hSocial, aSocial, homeAwaySplit, fixtureFatigue, lineupMatchup, h2h, odds,
-    weather, motivation, referee];
+    weather, motivation, referee, hLatest, aLatest, matchDayPulse];
   const failed = stageOne.filter((r) => r.content.startsWith("Veri alınamadı:"));
   if (failed.length > stageOne.length / 2) {
     const reason = failed[0].content.replace(/^Veri alınamadı:\s*/, "").slice(0, 300);
@@ -905,20 +1131,25 @@ export async function runFullMatchAnalysis(
     motivation: motivation.content,
     referee: referee.content,
     headToHead: h2h.content,
+    latestHome: hLatest.content,
+    latestAway: aLatest.content,
+    matchDayPulse: matchDayPulse.content,
   };
 
   const dossier = buildCompactDossier(homeTeamAnalysis, awayTeamAnalysis, baseContext);
 
   // STAGE 2: Run Quantitative Poisson Model & Devil's Advocate in parallel!
-  const [quantModel, devilsAdvocate] = await Promise.all([
+  const [quantModel, devilsAdvocate, surpriseHunter] = await Promise.all([
     runQuantPoissonAgent(homeTeam, awayTeam, dossier, logCollector),
     runDevilsAdvocateAgent(homeTeam, awayTeam, dossier, logCollector),
+    runSurpriseHunterAgent(homeTeam, awayTeam, league, dossier, logCollector),
   ]);
 
   const matchContext: MatchContext = {
     ...baseContext,
     quantModel,
     devilsAdvocate,
+    surpriseHunter: surpriseHunter.content,
   };
 
   // STAGE 3: Ensemble Commander Calibration & Final Decision
@@ -932,12 +1163,22 @@ export async function runFullMatchAnalysis(
     logCollector
   );
 
+  // STAGE 4 (Ek): Sürpriz Karar Ajanı — hata verse bile ana tahmin etkilenmez.
+  const surpriseVerdict = await runSurpriseVerdictAgent(
+    homeTeam,
+    awayTeam,
+    finalPrediction,
+    matchContext,
+    logCollector
+  );
+
   return {
     homeTeamAnalysis,
     awayTeamAnalysis,
     matchContext,
     headToHead: h2h.content,
     finalPrediction,
+    surpriseVerdict,
     logs: allLogs,
   };
 }

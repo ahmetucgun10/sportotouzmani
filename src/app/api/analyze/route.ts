@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
                   homeTeamData: result.homeTeamAnalysis,
                   awayTeamData: result.awayTeamAnalysis,
                   headToHead: result.headToHead,
+                  surpriseData: result.surpriseVerdict ?? null,
                   updatedAt: new Date(),
                 })
                 .where(eq(matchAnalyses.id, analysisId));
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
               matchContext: result.matchContext,
               headToHead: result.headToHead,
               finalPrediction: result.finalPrediction,
+              surpriseVerdict: result.surpriseVerdict ?? null,
             },
           });
         } catch (error) {

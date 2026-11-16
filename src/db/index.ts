@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS match_analyses (
   created_at timestamp NOT NULL DEFAULT now(),
   updated_at timestamp NOT NULL DEFAULT now()
 );
+ALTER TABLE match_analyses ADD COLUMN IF NOT EXISTS surprise_data jsonb;
 CREATE TABLE IF NOT EXISTS agent_logs (
   id serial PRIMARY KEY,
   analysis_id integer REFERENCES match_analyses(id) ON DELETE CASCADE,

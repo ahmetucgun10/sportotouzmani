@@ -319,6 +319,116 @@ function PredictionSection({
   );
 }
 
+/** Ek: Sürpriz Karar kartı — sürpriz varsa "Sürpriz sonucum", yoksa net sonuç. */
+function SurpriseVerdictCard({ verdict }: { verdict: NonNullable<AnalysisData["surpriseVerdict"]> }) {
+  if (!verdict.hasSurprise) {
+    return (
+      <div className="bg-emerald-950/30 border border-emerald-500/40 rounded-2xl p-5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="w-11 h-11 rounded-xl bg-emerald-600/30 flex items-center justify-center text-2xl">✅</div>
+          <div className="flex-1 min-w-0">
+            <div className="text-emerald-300 text-xs font-semibold uppercase tracking-wide">
+              Net Sonuç — Sürpriz Beklentisi Yok
+            </div>
+            <div className="text-white font-bold text-xl">
+              {verdict.mainResult}
+              {verdict.mainScore && verdict.mainScore !== "—" && (
+                <span className="ml-2 text-emerald-300">({verdict.mainScore})</span>
+              )}
+            </div>
+          </div>
+        </div>
+        <p className="text-slate-300 text-sm mt-3">{verdict.summary}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-gradient-to-br from-orange-950/40 to-pink-950/30 border border-orange-500/50 rounded-2xl p-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-xl bg-black/25 border border-white/10 p-4">
+          <div className="text-yellow-400 text-xs font-semibold uppercase tracking-wide">🏆 Ana Tahmin</div>
+          <div className="text-white font-bold text-lg mt-1">
+            {verdict.mainResult}
+            {verdict.mainScore && verdict.mainScore !== "—" && (
+              <span className="ml-2 text-yellow-300">({verdict.mainScore})</span>
+            )}
+          </div>
+        </div>
+        <div className="rounded-xl bg-orange-500/15 border border-orange-400/50 p-4">
+          <div className="text-orange-300 text-xs font-semibold uppercase tracking-wide flex items-center gap-2">
+            ⚡ Sürpriz Sonucum
+            <span className="px-2 py-0.5 rounded-full bg-orange-500/30 text-orange-200 normal-case">
+              Seviye: {verdict.surpriseLevel}
+            </span>
+          </div>
+          <div className="text-white font-bold text-lg mt-1">
+            {verdict.surpriseResult}
+            {verdict.surpriseScore && <span className="ml-2 text-orange-300">({verdict.surpriseScore})</span>}
+          </div>
+          {verdict.surpriseProbability !== null && (
+            <div className="mt-2">
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-orange-500 to-pink-500"
+                  style={{ width: `${verdict.surpriseProbability}%` }}
+                />
+              </div>
+              <div className="text-orange-200 text-xs mt-1">Sürpriz olasılığı: %{verdict.surpriseProbability}</div>
+            </div>
+          )}
+        </div>
+      </div>
+      <p className="text-slate-200 text-sm mt-4">{verdict.summary}</p>
+      {verdict.reasons.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {verdict.reasons.map((r, i) => (
+            <li key={i} className="text-slate-300 text-sm">• {r}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Ek: Son dakika & sürpriz ajan raporları */
+function LatestAndSurpriseSection({
+  context,
+  homeTeam,
+  awayTeam,
+}: {
+  context?: AnalysisData["matchContext"];
+  homeTeam: string;
+  awayTeam: string;
+}) {
+  const cards = [
+    { emoji: "🛰️", title: `${homeTeam} — Son 48 Saat`, text: context?.latestHome },
+    { emoji: "🛰️", title: `${awayTeam} — Son 48 Saat`, text: context?.latestAway },
+    { emoji: "📡", title: "Maç Günü Nabzı", text: context?.matchDayPulse },
+    { emoji: "⚡", title: "Sürpriz Avcısı Raporu", text: context?.surpriseHunter },
+  ].filter((c) => c.text);
+  if (cards.length === 0) {
+    return <p className="text-slate-500 text-sm text-center py-6">Bu analizde güncel gelişme verisi yok.</p>;
+  }
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {cards.map((card) => (
+        <div key={card.title} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+          <div className="px-5 py-3 bg-white/5 border-b border-white/10">
+            <h3 className="text-white font-bold flex items-center gap-2 text-sm">
+              <span className="text-lg">{card.emoji}</span> {card.title}
+            </h3>
+          </div>
+          <div className="p-5">
+            <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto">
+              {card.text}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AnalysisResult({
   result,
   homeTeam,
@@ -326,7 +436,9 @@ export default function AnalysisResult({
   league,
   analysisId,
 }: AnalysisResultProps) {
-  const [view, setView] = useState<"prediction" | "committee" | "teams" | "context">("prediction");
+  const [view, setView] = useState<
+    "prediction" | "committee" | "teams" | "context" | "latest"
+  >("prediction");
 
   return (
     <div className="space-y-6">
@@ -350,7 +462,7 @@ export default function AnalysisResult({
       </div>
 
       {/* View Tabs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <button
           onClick={() => setView("prediction")}
           className={`py-3 px-3 rounded-xl font-semibold text-sm transition-all ${
@@ -391,9 +503,23 @@ export default function AnalysisResult({
         >
           🌍 Piyasa & Saha
         </button>
+        <button
+          onClick={() => setView("latest")}
+          className={`py-3 px-3 rounded-xl font-semibold text-sm transition-all ${
+            view === "latest"
+              ? "bg-gradient-to-r from-sky-600 to-orange-600 text-white shadow-lg"
+              : "bg-white/5 border border-white/10 text-slate-400 hover:text-white"
+          }`}
+        >
+          ⚡ Son Dakika & Sürpriz
+        </button>
       </div>
 
       {/* Views */}
+      {view === "prediction" && result.surpriseVerdict && (
+        <SurpriseVerdictCard verdict={result.surpriseVerdict} />
+      )}
+
       {view === "prediction" && (
         <PredictionSection
           prediction={result.finalPrediction}
@@ -419,6 +545,14 @@ export default function AnalysisResult({
             isHome={false}
           />
         </div>
+      )}
+
+      {view === "latest" && (
+        <LatestAndSurpriseSection
+          context={result.matchContext}
+          homeTeam={homeTeam}
+          awayTeam={awayTeam}
+        />
       )}
 
       {view === "context" && (

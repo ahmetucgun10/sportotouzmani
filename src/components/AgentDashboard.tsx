@@ -32,6 +32,14 @@ const AGENT_COLORS: Record<string, string> = {
   "Kantitatif & Poisson Model Ajanı": "from-fuchsia-600 to-purple-600",
   "Şeytanın Avukatı & Tuzak Denetçisi": "from-rose-600 to-red-700",
   "Tahmin Komutanı": "from-amber-500 to-orange-500",
+  "Canlı Gelişme Takipçisi": "from-sky-500 to-cyan-400",
+  "Maç Günü Nabız Ajanı": "from-teal-500 to-sky-500",
+  "Sürpriz Avcısı Ajanı": "from-yellow-400 to-orange-600",
+  "Sürpriz Karar Ajanı": "from-orange-500 to-pink-600",
+  "Sürpriz Keşif Komutanı": "from-amber-500 to-pink-500",
+  "Fikstür Tarayıcı Ajanı": "from-blue-500 to-indigo-500",
+  "Sürpriz Radar Ajanı": "from-pink-500 to-rose-500",
+  "Sürpriz Puanlama Ajanı": "from-orange-500 to-amber-400",
 };
 
 const AGENT_BG: Record<string, string> = {
@@ -56,6 +64,14 @@ const AGENT_BG: Record<string, string> = {
   "Kantitatif & Poisson Model Ajanı": "bg-fuchsia-950/50 border-fuchsia-500/40",
   "Şeytanın Avukatı & Tuzak Denetçisi": "bg-rose-950/50 border-rose-500/40",
   "Tahmin Komutanı": "bg-amber-950/40 border-amber-500/30",
+  "Canlı Gelişme Takipçisi": "bg-sky-950/40 border-sky-500/30",
+  "Maç Günü Nabız Ajanı": "bg-teal-950/40 border-teal-500/30",
+  "Sürpriz Avcısı Ajanı": "bg-orange-950/40 border-orange-500/40",
+  "Sürpriz Karar Ajanı": "bg-pink-950/40 border-pink-500/40",
+  "Sürpriz Keşif Komutanı": "bg-amber-950/40 border-amber-500/40",
+  "Fikstür Tarayıcı Ajanı": "bg-blue-950/40 border-blue-500/30",
+  "Sürpriz Radar Ajanı": "bg-rose-950/40 border-rose-500/30",
+  "Sürpriz Puanlama Ajanı": "bg-orange-950/40 border-orange-500/30",
 };
 
 function AgentCard({ log, index }: { log: AgentLog; index: number }) {

@@ -10,6 +10,15 @@ interface AnalysisRecord {
   matchDate: string | null;
   status: string;
   finalPrediction: string | null;
+  surpriseData?: {
+    hasSurprise: boolean;
+    mainResult: string;
+    mainScore: string;
+    surpriseResult: string | null;
+    surpriseScore: string | null;
+    surpriseProbability: number | null;
+    summary: string;
+  } | null;
   createdAt: string;
   agentLogs: unknown[];
 }
@@ -199,6 +208,30 @@ export default function HistoryPanel() {
                       </div>
                     ) : selectedAnalysis ? (
                       <>
+                        {/* Sürpriz Kararı (ek) */}
+                        {selectedAnalysis.surpriseData && (
+                          <div
+                            className={`rounded-xl p-4 border ${
+                              selectedAnalysis.surpriseData.hasSurprise
+                                ? "bg-orange-950/20 border-orange-500/30"
+                                : "bg-emerald-950/20 border-emerald-500/30"
+                            }`}
+                          >
+                            <div className="text-sm font-semibold text-white">
+                              {selectedAnalysis.surpriseData.hasSurprise
+                                ? `⚡ Sürpriz sonucum: ${selectedAnalysis.surpriseData.surpriseResult}${
+                                    selectedAnalysis.surpriseData.surpriseScore
+                                      ? ` (${selectedAnalysis.surpriseData.surpriseScore})`
+                                      : ""
+                                  }`
+                                : `✅ Net sonuç: ${selectedAnalysis.surpriseData.mainResult} (${selectedAnalysis.surpriseData.mainScore})`}
+                            </div>
+                            <div className="text-slate-400 text-xs mt-1">
+                              {selectedAnalysis.surpriseData.summary}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Final Prediction */}
                         {selectedAnalysis.finalPrediction && (
                           <div className="bg-yellow-950/20 border border-yellow-500/20 rounded-xl p-4">

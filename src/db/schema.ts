@@ -12,6 +12,7 @@ export const matchAnalyses = pgTable("match_analyses", {
   homeTeamData: jsonb("home_team_data"),
   awayTeamData: jsonb("away_team_data"),
   headToHead: jsonb("head_to_head"),
+  surpriseData: jsonb("surprise_data"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
